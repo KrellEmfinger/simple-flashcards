@@ -124,16 +124,6 @@ Anki ("Notes in plain text"), Quizlet (export, tab between term and definition),
 
 Upload the `.json` file into this repository's `packs/` folder: on GitHub, open `packs/`, then **Add file → Upload files**, then commit. The deploy workflow rebuilds `packs/index.json` automatically, and the pack shows up under **Add cards → Deck packs** on the site. Anyone else can install it from the file with **Install a deck pack from a file…**.
 
-## Saving your edits to GitHub from the site
-
-1. Create a fine-grained personal access token under **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens**, with these settings:
-   - **Repository access:** only this repository.
-   - **Permissions:** Contents → Read and write.
-2. On the site, open **Save & export**. On GitHub Pages, the owner and repository fill in automatically; paste the token.
-3. Press **Commit deck to GitHub**. Pages redeploys with your changes.
-
-The token is stored only in that browser, and **Forget token** removes it. Don't save it on shared computers.
-
 ## Deck format
 
 Decks live in `decks/`:
