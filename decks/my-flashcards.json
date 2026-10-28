@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "id": "my-flashcards",
+  "title": "My Flashcards",
+  "description": "Sample cards to show how the app works. Remove them once you've added your own cards or installed a deck pack.",
+  "labels": {"group": "Group", "category": "Category"},
+  "domains": [
+    {"id": "S", "name": "Sample cards", "short": "Samples", "tag": "Samples", "sample": true}
+  ],
+  "objectives": [
+    {"id": "S.1", "domain": "S", "name": "Science", "sample": true},
+    {"id": "S.2", "domain": "S", "name": "History", "sample": true},
+    {"id": "S.3", "domain": "S", "name": "Geography", "sample": true},
+    {"id": "S.4", "domain": "S", "name": "Study tips", "sample": true}
+  ],
+  "cards": [
+    {"id": "S.1-photosynthesis", "obj": "S.1", "term": "Photosynthesis", "def": "How plants turn sunlight, water and carbon dioxide into glucose (food) and oxygen.", "src": "sample"},
+    {"id": "S.1-speed-of-light", "obj": "S.1", "term": "Speed of light", "def": "About 299,792 km per second in a vacuum. Light from the Sun takes about 8 minutes to reach Earth.", "src": "sample"},
+    {"id": "S.2-magna-carta", "obj": "S.2", "term": "Magna Carta", "def": "Charter agreed by King John of England in 1215 that limited the king's power and put him under the law.", "src": "sample"},
+    {"id": "S.2-printing-press", "obj": "S.2", "term": "Printing press", "def": "Movable-type press developed by Johannes Gutenberg around 1440; it made books cheap and spread literacy across Europe.", "src": "sample"},
+    {"id": "S.3-mariana-trench", "obj": "S.3", "term": "Mariana Trench", "def": "Deepest known part of the ocean, nearly 11,000 m deep, in the western Pacific.", "src": "sample"},
+    {"id": "S.3-largest-desert", "obj": "S.3", "term": "Largest desert on Earth", "def": "Antarctica. A desert is defined by low precipitation, not heat; the Sahara is the largest hot desert.", "src": "sample"},
+    {"id": "S.4-spaced-repetition", "obj": "S.4", "term": "Spaced repetition", "def": "Reviewing material at growing intervals, just before you'd forget it. In this app, the review pile holds the cards you missed.", "src": "sample"},
+    {"id": "S.4-active-recall", "obj": "S.4", "term": "Active recall", "def": "Pulling an answer from memory before looking at it. Flipping a card only after you've answered in your head is active recall.", "src": "sample"}
+  ]
+}

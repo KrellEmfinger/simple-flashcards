@@ -1,0 +1,6 @@
+term,definition,category,group
+OSI model,"Seven-layer reference model for network communication: Physical, Data Link, Network, Transport, Session, Presentation, Application.",Models and layers,Networking basics
+TCP,"Connection-oriented transport protocol with a three-way handshake (SYN, SYN-ACK, ACK) and guaranteed, ordered delivery.",Protocols,Networking basics
+UDP,"Connectionless transport protocol: no handshake or delivery guarantee, so it's fast. Used for DNS lookups, VoIP and streaming.",Protocols,Networking basics
+DNS (port 53),Translates names like example.com into IP addresses. Uses UDP 53 for queries and TCP 53 for zone transfers.,Ports and services,Networking basics
+/24 subnet,"Subnet mask 255.255.255.0: 256 addresses, 254 usable hosts.",Subnetting,IP addressing

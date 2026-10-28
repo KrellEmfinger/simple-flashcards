@@ -1,0 +1,56 @@
+name: Validate and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate deck
+        run: python3 tools/deck.py validate
+      - name: Check app.js syntax
+        run: node --check app.js
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Index packs and build offline copy
+        run: |
+          python3 tools/deck.py packs
+          python3 tools/deck.py build
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp index.html app.css app.js _site/
+          cp -r decks _site/
+          cp -r packs _site/
+          cp dist/flashcards-offline.html _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

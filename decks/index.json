@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "default": "my-flashcards",
+  "decks": [
+    {"id": "my-flashcards", "file": "my-flashcards.json", "title": "My Flashcards"}
+  ]
+}
