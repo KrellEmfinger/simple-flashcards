@@ -36,7 +36,25 @@ It starts with 8 sample cards so you can see how it works. Install a pack or add
 - **Fresh start every visit:** by default the app always opens on the decks saved in the repository (or built into the offline file), with no leftover progress, sessions or edits from earlier visits. If you try to leave with unsaved edits, you're warned first. To keep your progress between visits, turn on **Save & export → On this device → Remember my progress and unsaved edits**. Progress is never committed to the repository.
 - Light and dark themes, phone-sized screens, no build step, no dependencies.
 
-## Getting started
+## Install it
+
+There are three ways to use it, and all of them work offline.
+
+| Way | Best for | How |
+| --- | --- | --- |
+| **Installable app** | Any computer, phone or tablet | Open the site, then press **⬇ Install app** at the top (or the install icon in Chrome/Edge's address bar). On iPhone/iPad: Share → **Add to Home Screen**. On Android: menu → **Install app**. |
+| **Desktop installer** | Windows, Mac, Linux without a browser | Download from the [Releases](../../releases) page: `.msi`/`-setup.exe` (Windows), `aarch64.dmg` (Apple silicon Mac) or `x64.dmg` (Intel Mac), `.AppImage`/`.deb`/`.rpm` (Linux). |
+| **Website** | Trying it out | `https://<your-name>.github.io/<repo>/` |
+
+The installers aren't code-signed yet. Windows may say "Windows protected your PC": choose **More info → Run anyway**. macOS may refuse to open it: go to **System Settings → Privacy & Security → Open Anyway**. If macOS says the app is "damaged", run `xattr -dr com.apple.quarantine "/Applications/Simple Flashcards.app"` once.
+
+### Where your decks are saved
+
+- **Save & export → Save to this device** keeps every deck on that computer or phone (in the desktop app's own storage, or the browser's). The app reopens exactly as you left it, with or without internet. Until you save there, it opens with the decks it shipped with.
+- **Go back to the original decks** removes the device copy.
+- **Commit all decks to GitHub** makes your repository match what you see, so every device and the website get your changes.
+
+## Getting started (developers)
 
 ### Use it on GitHub Pages
 
@@ -172,17 +190,42 @@ python3 tools/deck.py from-csv in.csv "Name"   # spreadsheet -> packs/<name>.jso
 python3 tools/deck.py build               # dist/flashcards-offline.html
 ```
 
+## Building the desktop installers
+
+GitHub builds them for you: **Actions → Desktop installers → Run workflow**, or push a version tag:
+
+```bash
+git tag v1.0.1 && git push origin v1.0.1
+```
+
+About 15 minutes later, a **draft** release with Windows, Mac and Linux installers appears under **Releases**. Check it, then press **Publish**. Before a new release, raise the version number in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`.
+
+To build on your own machine, install [Rust](https://rustup.rs/), Node.js and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS, then run:
+
+```bash
+npm ci
+python3 tools/deck.py app     # copies the app into app-dist/
+npx tauri build               # installers land in src-tauri/target/release/bundle/
+```
+
+The desktop app is the same web app inside a small native window ([Tauri](https://tauri.app)), plus native "Save as" dialogs for exports.
+
 ## Project layout
 
 ```
 index.html                    page shell
+manifest.webmanifest, sw.js   make it installable and offline-capable
+icons/                        app icons
 app.css                       styles (light and dark)
 app.js                        the whole app, plain JavaScript
 decks/                        your decks + index.json (starts with an 8-card sample deck)
 packs/                        installable deck packs + index.json
 templates/                    spreadsheet template and AI prompt for making packs
 tools/deck.py                 validate / format / import / pack index / offline build
+src-tauri/                    desktop app (Tauri) configuration and icons
+package.json                  pins the Tauri CLI used for desktop builds
 .github/workflows/pages.yml   validates decks on every push and PR, deploys to GitHub Pages
+.github/workflows/release.yml builds Windows/Mac/Linux installers into a draft release
 ```
 
 ## Ideas for later

@@ -58,7 +58,8 @@ function cleanCard(c) {
 /* ---------- state ---------- */
 const S = {
   deck: null, baseText: "", baseDeck: null, loadError: null, draftConflict: null,
-  env: { inViewer: !!window.claude, artifact: null, downloads: null, sample: null, readOnly: false, saving: false },
+  env: { inViewer: !!window.claude, artifact: null, downloads: null, sample: null, readOnly: false, saving: false,
+    desktop: !!window.__TAURI__, installPrompt: null, installed: false, source: "files" },
   view: "study",
   study: { dom: "all", obj: null, mode: "flip", filter: "all", defFirst: false, order: [], known: [], review: [], round: 1, missed: new Set(), history: [],
     pile: "study", flipped: false, quiz: null, typing: null, reveal: null, right: 0, asked: 0, elapsed: 0, typedN: 0, typedMs: 0, timeouts: 0 },
@@ -165,7 +166,34 @@ function deckDirty(id) {
   return !!st && serializeDeck(st.deck) !== st.baseText;
 }
 function dirtyIds() { return S.lib.index.decks.map((d) => d.id).filter(deckDirty); }
+/* "Save to this device": the whole library kept in this browser / desktop app, used instead of the bundled decks. */
+const DEVICE_KEY = "fc-device-lib";
+const deviceLib = () => LS.get(DEVICE_KEY, null);
+const deviceSaveAvailable = () => !S.env.inViewer;
+async function allDeckTexts() {          // every deck as text, loading any that haven't been opened yet
+  stash();
+  const out = {};
+  for (const e of S.lib.index.decks) {
+    const st = S.lib.store[e.id];
+    out[e.id] = st ? serializeDeck(st.deck) : await fetchDeckText(e);
+  }
+  return out;
+}
+async function saveToDevice() {
+  try {
+    const decks = await allDeckTexts();
+    const lib = { savedAt: Date.now(), index: S.lib.index, decks };
+    localStorage.setItem(DEVICE_KEY, JSON.stringify(lib));
+    markAllSaved(); S.env.source = "device";
+    toast(`Saved ${plural(Object.keys(decks).length, "deck")} to this device`);
+  } catch (e) {
+    toast(/quota/i.test(String(e)) ? "Not enough browser storage to save that much here. Export the decks instead." : `Couldn't save to this device (${e.message || e}).`);
+  }
+  render();
+}
 async function fetchDeckText(entry) {
+  const dev = S.env.source === "device" ? deviceLib() : null;
+  if (dev && dev.decks[entry.id]) return dev.decks[entry.id];
   if (window.EMBEDDED_LIB) {
     const d = window.EMBEDDED_LIB.decks[entry.id];
     if (!d) throw new Error(`deck ${entry.id} is missing`);
@@ -247,6 +275,8 @@ function pendingFiles(folder) {
 
 /* ---------- loading ---------- */
 async function loadIndex() {
+  const dev = deviceSaveAvailable() ? deviceLib() : null;
+  if (dev && dev.index?.decks?.length) { S.env.source = "device"; return dev.index; }
   if (window.EMBEDDED_LIB) return window.EMBEDDED_LIB.index;
   const r = await fetch("decks/index.json", { cache: "no-cache" });
   if (!r.ok) throw new Error(`decks/index.json answered ${r.status}`);
@@ -653,6 +683,7 @@ function viewHeader() {
       <label class="row small muted" for="deck-switch">Deck
         <select id="deck-switch">${S.lib.index.decks.map((d) => `<option value="${esc(d.id)}" ${d.id === S.activeId ? "selected" : ""}>${esc(d.title)}${deckDirty(d.id) ? " •" : ""}</option>`).join("")}
           <option value="__new">+ New deck…</option></select></label>
+      ${S.env.installPrompt && !S.env.installed ? `<button class="btn small primary" data-act="install-app">⬇ Install app</button>` : ""}
       <label class="row small muted" for="theme-pick">Theme
         <select id="theme-pick">${THEMES.map(([v, l]) => `<option value="${v}" ${(S.deck.theme || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     </div>
@@ -974,12 +1005,27 @@ function viewSave() {
       <div class="row"><button class="btn primary" data-act="save-page" ${n && !S.env.readOnly && !S.env.saving ? "" : "disabled"}>${S.env.saving ? "Saving…" : n ? `Save ${plural(n, "changed file")}` : "Nothing to save"}</button>
       ${n ? `<button class="btn danger" data-act="discard">Discard changes</button>` : ""}</div>
     </div>` : "";
+  const dev = deviceLib();
+  const devicePanel = deviceSaveAvailable() ? `<div class="panel">
+      <h2>Save to this device</h2>
+      <p class="muted">Keeps all your decks ${S.env.desktop ? "in this app" : "in this browser"}, so they open exactly as you left them, even offline. ${dev ? `Last saved ${esc(new Date(dev.savedAt).toLocaleString())}.` : "Until you save here, the app opens with the original decks."}</p>
+      <div class="row"><button class="btn primary" data-act="dev-save" ${n ? "" : "disabled"}>${n ? `Save ${plural(n, "change")} to this device` : "Nothing to save"}</button>
+        ${n ? `<button class="btn danger" data-act="discard">Discard changes</button>` : ""}
+        ${dev ? `<button class="btn" data-act="dev-reset">Go back to the original decks</button>` : ""}</div>
+    </div>` : "";
+  const installPanel = S.env.inViewer || S.env.desktop ? "" : `<div class="panel">
+      <h2>Use it as an app</h2>
+      ${S.env.installed ? `<p class="muted">Installed. Open it from your Start menu, Dock, app launcher or home screen; it works offline.</p>`
+        : `<p class="muted">Install Simple Flashcards to get its own window and icon, and to use it with no internet connection.</p>
+      <div class="row">${S.env.installPrompt ? `<button class="btn primary" data-act="install-app">Install app</button>` : ""}</div>
+      <p class="muted small">${S.env.installPrompt ? "" : "If there's no Install button: in Chrome or Edge use the install icon in the address bar (or menu → Install); "}on iPhone or iPad, tap Share → Add to Home Screen; on Android, menu → Install app. Desktop installers for Windows, Mac and Linux are on the project's GitHub Releases page.</p>`}
+    </div>`;
   const ghPanel = S.env.inViewer ? `<div class="panel">
       <h2>Save to GitHub</h2>
       <p class="muted">Committing straight to GitHub works from the GitHub Pages copy of this app. From here, export each deck below and upload it to the <code>decks/</code> folder of your repository.</p>
     </div>` : `<div class="panel">
       <h2>Save to GitHub</h2>
-      <p class="muted">Commits every changed deck to the <code>${esc(gh.folder)}/</code> folder of your repository, in one commit. Needs a fine-grained personal access token with <b>Contents: Read and write</b> on that one repository (<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">create one</a>). The token is kept in this browser only.</p>
+      <p class="muted">Commits all your decks to the <code>${esc(gh.folder)}/</code> folder of your repository in one commit, so the repository matches what you see here (decks you deleted are removed there too). Needs a fine-grained personal access token with <b>Contents: Read and write</b> on that one repository (<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">create one</a>). The token is kept in this browser only.</p>
       <div class="grid2">
         <label class="field">Owner<input type="text" id="gh-owner" data-bind="settings.gh.owner" value="${esc(gh.owner)}" placeholder="your-github-name"></label>
         <label class="field">Repository<input type="text" id="gh-repo" data-bind="settings.gh.repo" value="${esc(gh.repo)}" placeholder="secplus-flashcards"></label>
@@ -988,10 +1034,9 @@ function viewSave() {
         <label class="field">Token<input type="password" id="gh-token" data-bind="ghToken" value="${esc(S.ghToken)}" placeholder="github_pat_…" autocomplete="off"></label>
         <label class="field">Commit message<input type="text" id="gh-msg" data-bind="settings.commitMsg" value="${esc(S.settings.commitMsg)}" placeholder="Update flashcards"></label>
       </div>
-      <div class="row"><button class="btn primary" data-act="gh-commit" ${S.env.saving || !n ? "disabled" : ""}>${S.env.saving ? "Committing…" : "Commit deck to GitHub"}</button>
-        ${n ? `<button class="btn danger" data-act="discard">Discard changes</button>` : ""}
+      <div class="row"><button class="btn primary" data-act="gh-commit" ${S.env.saving ? "disabled" : ""}>${S.env.saving ? "Committing…" : "Commit all decks to GitHub"}</button>
         ${S.ghToken ? `<button class="btn" data-act="gh-forget">Forget token</button>` : ""}</div>
-      ${n ? `<p class="muted small">Will commit: ${Object.keys(pendingFiles(gh.folder)).map((f) => `<code>${esc(f)}</code>`).join(", ")}</p>` : `<p class="muted small">Nothing to commit right now.</p>`}
+      <p class="muted small">Files that haven't changed are left alone, so committing twice in a row does nothing.</p>
     </div>`;
   const aiPanel = S.env.inViewer ? "" : `<div class="panel">
       <h2>Claude for card generation</h2>
@@ -1002,7 +1047,7 @@ function viewSave() {
       </div>
     </div>`;
   const known = S.deck.cards.filter((c) => S.prog[pk(c)] === "k").length, again = S.deck.cards.filter((c) => S.prog[pk(c)] === "a").length;
-  return pageSave + ghPanel + `<div class="panel">
+  return pageSave + devicePanel + ghPanel + `<div class="panel">
       <h2>Export</h2>
       <p class="muted">Exports “${esc(S.deck.title)}”. The deck file is the format the repository stores. The Anki/Quizlet file is tab-separated: term, definition, and a ${lab().c} tag.</p>
       <div class="row">
@@ -1010,8 +1055,8 @@ function viewSave() {
         <button class="btn" data-act="exp-anki">Anki / Quizlet (.txt)</button>
         <button class="btn" data-act="exp-csv">Spreadsheet (.csv)</button>
       </div>
-    </div>` + viewPackExport() + aiPanel + `<div class="panel">
-      <h2>On this device</h2>
+    </div>` + installPanel + viewPackExport() + aiPanel + `<div class="panel">
+      <h2>Study memory</h2>
       <label class="row" style="gap:10px;cursor:pointer;align-items:flex-start"><input type="checkbox" id="remember" ${REMEMBER ? "checked" : ""} style="width:18px;height:18px;margin-top:3px;accent-color:var(--accent)">
         <span><b>Remember my progress and unsaved edits</b><br><span class="muted small">Off: every visit starts fresh from the saved decks, and you'll be warned before leaving with unsaved edits. On: Known/Review progress, your place in a session, and unsaved edits are kept in this browser.</span></span></label>
     </div>
@@ -1336,7 +1381,19 @@ async function aiGenerate() {
 }
 
 /* ---------- export + save ---------- */
+function openExternal(url) {
+  const op = window.__TAURI__?.opener;
+  if (op) op.openUrl(url).catch(() => toast("Couldn't open the link."));
+  else window.open(url, "_blank", "noopener");
+}
 async function offerFile(filename, text) {
+  if (S.env.desktop && window.__TAURI__?.dialog && window.__TAURI__?.fs) {
+    try {
+      const path = await window.__TAURI__.dialog.save({ defaultPath: filename });
+      if (path) { await window.__TAURI__.fs.writeTextFile(path, text); toast(`Saved ${filename}`); }
+    } catch (e) { toast(`Couldn't save the file (${e?.message || e}).`); }
+    return;
+  }
   if (S.env.downloads) {
     try { await S.env.downloads.save({ filename, data: text }); toast(`Saved ${filename}`); return; }
     catch (e) { if (e?.code === "declined") return; if (!["unavailable", "not_granted", "capability_disabled", "capability_removed"].includes(e?.code)) { toast(`Couldn't save the file (${e?.code || e}).`); return; } }
@@ -1390,8 +1447,13 @@ async function ghCommit() {
   const g = S.settings.gh;
   if (!g.owner || !g.repo || !S.ghToken) { toast("Fill in owner, repository and token first."); return; }
   const folder = (g.folder || "decks").replace(/^\/+|\/+$/g, "");
-  const files = pendingFiles(folder); if (!Object.keys(files).length) { toast("Nothing to commit."); return; }
   S.env.saving = true; render();
+  let files;
+  try {
+    const texts = await allDeckTexts();
+    files = { [`${folder}/index.json`]: indexText() };
+    for (const e of S.lib.index.decks) files[`${folder}/${e.file}`] = texts[e.id];
+  } catch (e) { toast(`Couldn't read every deck (${e.message || e}).`); S.env.saving = false; render(); return; }
   const api = `https://api.github.com/repos/${encodeURIComponent(g.owner)}/${encodeURIComponent(g.repo)}/git`;
   const hdr = { Authorization: `Bearer ${S.ghToken}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" };
   const call = async (path, opt = {}) => {
@@ -1403,14 +1465,19 @@ async function ghCommit() {
   try {
     const ref = await call(`/ref/heads/${encodeURIComponent(g.branch)}`);
     const parent = await call(`/commits/${ref.object.sha}`);
+    const current = await call(`/trees/${parent.tree.sha}?recursive=1`);
+    for (const f of current.tree || []) {         // deck files in the repo that are no longer in the deck list
+      if (f.type === "blob" && f.path.startsWith(folder + "/") && f.path.endsWith(".json") && !(f.path in files) && !f.path.slice(folder.length + 1).includes("/")) files[f.path] = null;
+    }
     const tree = Object.entries(files).map(([path, text]) => text == null ? { path, mode: "100644", type: "blob", sha: null } : { path, mode: "100644", type: "blob", content: text });
     const newTree = await call("/trees", { method: "POST", body: JSON.stringify({ base_tree: parent.tree.sha, tree }) });
+    if (newTree.sha === parent.tree.sha) { markAllSaved(); toast("GitHub already has these decks. Nothing to commit."); S.env.saving = false; render(); return; }
     const names = dirtyIds().map((id) => entryOf(id).title);
     const message = S.settings.commitMsg.trim() || (names.length ? `Update ${names.join(", ")}` : "Update deck list");
     const commit = await call("/commits", { method: "POST", body: JSON.stringify({ message, tree: newTree.sha, parents: [parent.sha] }) });
     await call(`/refs/heads/${encodeURIComponent(g.branch)}`, { method: "PATCH", body: JSON.stringify({ sha: commit.sha }) });
     markAllSaved(); S.settings.commitMsg = ""; LS.set("fc-settings", S.settings);
-    toast("Committed to GitHub", "View commit", () => window.open(commit.html_url || `https://github.com/${g.owner}/${g.repo}/commit/${commit.sha}`, "_blank", "noopener"));
+    toast("Committed to GitHub", "View commit", () => openExternal(commit.html_url || `https://github.com/${g.owner}/${g.repo}/commit/${commit.sha}`));
   } catch (e) {
     const m = String(e.message || e);
     toast(/^401/.test(m) ? "GitHub rejected the token. Check it hasn't expired." : /^40[34]/.test(m) ? `GitHub said ${m}. Check the owner, repository, branch, and that the token can write Contents.` : /^409/.test(m) ? "The repository is empty. Push the project to it first." : `Commit failed: ${m}`);
@@ -1543,6 +1610,9 @@ document.addEventListener("click", (ev) => {
       toast(`Removed ${plural(n, "sample card")}. Save to make it stick.`);
     }); break;
     case "save-page": savePage(); break;
+    case "dev-save": saveToDevice(); break;
+    case "dev-reset": confirmClick(t, "Click to confirm", () => { LS.del(DEVICE_KEY); try { localStorage.removeItem(DEVICE_KEY); } catch (e) { /* blocked */ } LS.forgetMemory(); location.reload(); }); break;
+    case "install-app": { const pr = S.env.installPrompt; if (pr) { pr.prompt(); pr.userChoice.then((c) => { if (c.outcome === "accepted") { S.env.installPrompt = null; S.env.installed = true; } render(); }); } break; }
     case "gh-commit": ghCommit(); break;
     case "gh-forget": S.ghToken = ""; LS.del("fc-gh-token"); render(); toast("Token removed from this browser"); break;
     case "discard": confirmClick(t, "Click to confirm", async () => {
@@ -1653,5 +1723,18 @@ if (/\.github\.io$/i.test(location.hostname) && !S.settings.gh.owner) {
   S.settings.gh.owner = location.hostname.split(".")[0];
   S.settings.gh.repo = location.pathname.split("/").filter(Boolean)[0] || `${S.settings.gh.owner}.github.io`;
 }
+
+// Offline support and installing: a service worker caches the app (not inside Claude, not in the desktop app).
+if ("serviceWorker" in navigator && !S.env.inViewer && !S.env.desktop && /^https?:$/.test(location.protocol)) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => { /* offline mode unavailable */ }));
+}
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); S.env.installPrompt = e; if (S.deck) render(); });
+window.addEventListener("appinstalled", () => { S.env.installPrompt = null; S.env.installed = true; if (S.deck) render(); toast("Installed. You can open Simple Flashcards like any other app."); });
+if (window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone) S.env.installed = true;
+// In the desktop app, open web links in the normal browser.
+document.addEventListener("click", (ev) => {
+  const a = ev.target.closest('a[target="_blank"]');
+  if (a && S.env.desktop) { ev.preventDefault(); openExternal(a.href); }
+}, true);
 
 boot();

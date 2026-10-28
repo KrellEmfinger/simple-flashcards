@@ -44,7 +44,8 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p _site
-          cp index.html app.css app.js _site/
+          cp index.html app.css app.js sw.js manifest.webmanifest _site/
+          cp -r icons _site/
           cp -r decks _site/
           cp -r packs _site/
           cp dist/flashcards-offline.html _site/

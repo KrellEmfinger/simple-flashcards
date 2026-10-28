@@ -1,0 +1,78 @@
+name: Desktop installers
+
+# Builds Windows, Mac and Linux installers and attaches them to a draft GitHub Release.
+# Run it by pushing a version tag (git tag v1.0.1 && git push origin v1.0.1),
+# or from the Actions tab with "Run workflow". Publish the draft release when you're happy with it.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest          # Apple silicon Macs
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest          # Intel Macs
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Linux build libraries
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install the Tauri CLI
+        run: npm ci
+
+      - name: Check decks and copy the app for packaging
+        shell: bash
+        run: |
+          python tools/deck.py validate
+          python tools/deck.py app
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: Simple Flashcards v__VERSION__
+          releaseBody: |
+            Download the installer for your computer:
+            - **Windows:** the `.msi` or `-setup.exe` file
+            - **Mac (Apple silicon, M1 or newer):** the `aarch64.dmg` file
+            - **Mac (Intel):** the `x64.dmg` file
+            - **Linux:** the `.AppImage` (any distro), `.deb` (Ubuntu/Debian) or `.rpm` (Fedora) file
+
+            The installers aren't code-signed yet, so:
+            - Windows may show "Windows protected your PC": click **More info**, then **Run anyway**.
+            - macOS may say the app can't be opened: open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**. If it says the app is "damaged", run `xattr -dr com.apple.quarantine "/Applications/Simple Flashcards.app"` in Terminal once.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

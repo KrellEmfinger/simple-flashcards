@@ -2,3 +2,7 @@ dist/
 __pycache__/
 .DS_Store
 _site/
+node_modules/
+app-dist/
+src-tauri/target/
+src-tauri/gen/

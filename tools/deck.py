@@ -8,6 +8,7 @@
                                             make packs/<name>.json from a spreadsheet with columns
                                             term, definition, category, group (header row optional)
   python3 tools/deck.py build               write dist/flashcards-offline.html (single file, works without a server)
+  python3 tools/deck.py app                 copy the app into app-dist/ for the desktop (Tauri) build
   python3 tools/deck.py import FILE.tsv CAT [--deck ID]
                                             append "term<TAB>definition" rows to category CAT (e.g. 4.6)
   python3 tools/deck.py stats [--deck ID]   cards per group and category
@@ -297,7 +298,22 @@ def cmd_from_csv(args):
     return 0
 
 
-COMMANDS = {"from-csv": cmd_from_csv, "validate": cmd_validate, "fmt": cmd_fmt, "packs": cmd_packs, "build": cmd_build, "import": cmd_import, "stats": cmd_stats}
+def cmd_app(_):
+    """Copy the web app into app-dist/ for the desktop (Tauri) build."""
+    import shutil
+    out = ROOT / "app-dist"
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir()
+    for f in ["index.html", "app.css", "app.js", "manifest.webmanifest"]:
+        shutil.copy2(ROOT / f, out / f)
+    for d in ["decks", "packs", "icons"]:
+        shutil.copytree(ROOT / d, out / d)
+    print(f"wrote {out.relative_to(ROOT)}/")
+    return 0
+
+
+COMMANDS = {"app": cmd_app, "from-csv": cmd_from_csv, "validate": cmd_validate, "fmt": cmd_fmt, "packs": cmd_packs, "build": cmd_build, "import": cmd_import, "stats": cmd_stats}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:

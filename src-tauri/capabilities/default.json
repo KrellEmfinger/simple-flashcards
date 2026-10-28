@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the flashcards window may do: open links in the browser and save exported files the user picks.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:allow-open-url",
+    "dialog:allow-save",
+    "fs:allow-write-text-file"
+  ]
+}
